@@ -1,24 +1,41 @@
+import websockets
 import asyncio
-from binance_client import BinanceClient
-from plotter import Plotter
+import json
+import time
+import matplotlib.pyplot as plt
+
+
+fig = plt.figure()
+ax = fig.add_subplot(111)
+fig.show()
+
+xdata = []
+ydata = []
+
+
+def update_graph():
+    ax.plot(xdata, ydata, color='g')
+    ax.legend([f"Last price: {ydata[-1]:.2f}$"])  # Отображаем два знака после запятой
+
+    fig.canvas.draw()
+    plt.pause(0.1)
 
 
 async def main():
-    symbol = input("Enter Binance symbol (e.g., BTCUSDT): ")
-
-    binance_client = BinanceClient(symbol)
-    plotter = Plotter(symbol)
-
-    await binance_client.connect()
-
-    try:
+    url = "wss://stream.binance.com:9443/stream?streams=btcusdt@miniTicker"
+    async with websockets.connect(url) as client:
         while True:
-            await binance_client.get_data()
-            plotter.update_graph(binance_client.xdata, binance_client.ydata)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        await binance_client.close()
+            data = json.loads(await client.recv())['data']
+
+            event_time = time.localtime(data['E'] // 1000)
+            event_time = f"{event_time.tm_hour}:{event_time.tm_min}:{event_time.tm_sec}"
+
+            print(event_time, data['c'])
+
+            xdata.append(event_time)
+            ydata.append(float(data['c']))  # Используем float для чисел с плавающей запятой
+
+            update_graph()
 
 
 if __name__ == '__main__':
